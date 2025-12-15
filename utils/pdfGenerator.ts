@@ -57,7 +57,7 @@ const pdfToPng = async (base64Pdf: string): Promise<string> => {
     }
 };
 
-export const generatePDF = async (expenses: Expense[], receipts: Receipt[], user: User) => {
+export const generatePDF = async (expenses: Expense[], receipts: Receipt[], user: User, returnBlobUrl: boolean = false) => {
   const doc = new jspdf.jsPDF();
   
   // -- Logo Generation --
@@ -294,5 +294,9 @@ export const generatePDF = async (expenses: Expense[], receipts: Receipt[], user
     }
   }
 
-  doc.save(`expense_report_${new Date().toISOString().split('T')[0]}.pdf`);
+  if (returnBlobUrl) {
+    return doc.output('bloburl');
+  } else {
+    doc.save(`expense_report_${new Date().toISOString().split('T')[0]}.pdf`);
+  }
 };

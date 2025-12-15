@@ -3,6 +3,7 @@ import { Expense, Receipt, User } from '../types';
 import { CATEGORIES, PROJECTS } from '../constants';
 import { generatePDF } from '../utils/pdfGenerator';
 import ImagePreviewModal from './ImagePreviewModal';
+import EmailReviewModal from './EmailReviewModal';
 
 interface ExpenseTableProps {
   expenses: Expense[];
@@ -30,6 +31,10 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
   const [editingReceiptLinksFor, setEditingReceiptLinksFor] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{url: string, mime: string} | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  
+  // State for email workflow
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string>('');
 
   const totalAmount = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const allReviewed = expenses.length > 0 && expenses.every(e => e.isReviewed);
@@ -40,7 +45,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
   let exportTooltip = "";
   if (!hasSupervisor) exportTooltip = "Please enter a Supervisor Name to enable export.";
   else if (!allReviewed) exportTooltip = "Please review all expense items (check the boxes) before exporting.";
-  else exportTooltip = "Generate PDF Report";
+  else exportTooltip = "Generate PDF Report & Email";
 
   const handleReceiptToggle = (expenseId: string, receiptId: string) => {
     const expense = expenses.find(e => e.id === expenseId);
@@ -53,12 +58,17 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
     onLinkReceipts(expenseId, newLinks);
   };
 
-  const handleDownloadPdf = async () => {
+  const handleReviewPdf = async () => {
     if (!canExport) return;
 
     setIsGeneratingPdf(true);
     try {
-        await generatePDF(expenses, receipts, user);
+        // Generate blob URL instead of saving
+        const blobUrl = await generatePDF(expenses, receipts, user, true);
+        if (blobUrl && typeof blobUrl === 'string') {
+            setGeneratedPdfUrl(blobUrl);
+            setEmailModalOpen(true);
+        }
     } catch (e) {
         console.error(e);
         alert("Failed to generate PDF. Check console for details.");
@@ -91,7 +101,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
             
             <div className="relative group">
                 <button 
-                    onClick={handleDownloadPdf}
+                    onClick={handleReviewPdf}
                     disabled={!canExport || isGeneratingPdf}
                     className={`inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white 
                         ${!canExport || isGeneratingPdf ? 'bg-gray-400 cursor-not-allowed' : 'bg-cape-primary hover:bg-cape-dark'} 
@@ -100,7 +110,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
                     {isGeneratingPdf ? (
                         <><i className="fa-solid fa-circle-notch fa-spin mr-2"></i> Generating...</>
                     ) : (
-                        <><i className="fa-solid fa-file-pdf mr-2"></i> Export PDF</>
+                        <><i className="fa-solid fa-envelope-open-text mr-2"></i> Review PDF</>
                     )}
                 </button>
                 {/* Custom Tooltip */}
@@ -352,6 +362,15 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
         imageUrl={previewImage?.url || ''} 
         mimeType={previewImage?.mime}
         onClose={() => setPreviewImage(null)} 
+      />
+      
+      {/* Email Review Modal */}
+      <EmailReviewModal
+        isOpen={emailModalOpen}
+        onClose={() => setEmailModalOpen(false)}
+        pdfUrl={generatedPdfUrl}
+        user={user}
+        expenses={expenses}
       />
     </div>
   );
